@@ -2,8 +2,24 @@ spring-boot-admin-server-ui
 ================================
 
 ### Building this module
-The jar **can be build with Maven** with the maven-exec-plugin. To do this node.js and npm must be installed on your machine and be on your $PATH.
-If you dont want to use the maven exec run the following commands:
+The jar **can be build with Maven** with the maven-exec-plugin. To do this node.js and npm must be installed on your machine and be on your `$PATH`.
+If you don't want to use the maven exec run the following commands:
+
+### Running Spring Boot Admin Server for development
+To develop the ui on an running server the best to do is
+
+1. Running the ui build in watch mode so the resources get updated:
+```shell
+npm run watch
+```
+2. Run a Spring Boot Admin Server instances with the template-location and resource-location pointing to the build output and disable caching:
+```
+spring.boot.admin.ui.cache.no-cache: true
+spring.boot.admin.ui.resource-locations: file://@project.basedir@/../../spring-boot-admin-server-ui/target/dist/
+spring.boot.admin.ui.template-location: file://@project.basedir@/../../spring-boot-admin-server-ui/target/dist/
+spring.boot.admin.ui.cache-templates: false
+```
+Or just start the [spring-boot-admin-sample-servlet](../spring-boot-admin-samples/spring-boot-admin-sample-servlet) project using the `dev` profile.
 
 ### Build
 ```shell
@@ -13,13 +29,7 @@ npm run build
 
 Repeated build with watching the files:
 ```shell
-npm run watch:js
-```
-
-### Run dev-server
-This starts a dev-server serving the ui only at port 9000. The rest requests are forwarded to port 8080.
-```shell
-npm run dev-server
+npm run watch
 ```
 
 ## Run tests

@@ -1,16 +1,44 @@
-info:
-  stage: test
-
 spring:
   application:
     name: spring-boot-admin-sample-war
   boot:
     admin:
-      url: http://localhost:8080
-  cloud:
-    config:
-      enabled: false
+      client:
+        url: http://localhost:8080
+        instance:
+          service-base-url: http://localhost:8080
+  profiles:
+    active:
+      - secure
 
-endpoints:
-  health:
-    sensitive: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: ALWAYS
+
+---
+spring:
+  profiles: insecure
+
+---
+spring:
+  profiles: secure
+  security:
+    user:
+      name: "user"
+      password: "password"
+  boot:
+    admin:
+      client:
+        username: "user"       #These two are needed so that the client
+        password: "password"   #can register at the protected server api
+        instance:
+          metadata:
+            user.name: "user"         #These two are needed so that the server
+            user.password: "password" #can access the protected client endpoints
+
+

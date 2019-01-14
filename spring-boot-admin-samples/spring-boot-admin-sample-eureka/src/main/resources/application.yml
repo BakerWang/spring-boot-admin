@@ -1,28 +1,46 @@
 spring:
   application:
-    name: eureka-example
-  cloud:
-    config:
-      enabled: false
+    name: spring-boot-admin-sample-eureka
+  profiles:
+    active:
+      - secure
+
+
 # tag::configuration-eureka[]
-eureka:  #<1>
+eureka:   #<1>
   instance:
     leaseRenewalIntervalInSeconds: 10
+    health-check-url-path: /actuator/health
+    metadata-map:
+      startup: ${random.int}    #needed to trigger info and endpoint update after restart
   client:
     registryFetchIntervalSeconds: 5
     serviceUrl:
       defaultZone: ${EUREKA_SERVICE_URL:http://localhost:8761}/eureka/
 
-management.security.enabled: false  #<2>
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"  #<2>
+  endpoint:
+    health:
+      show-details: ALWAYS
 # end::configuration-eureka[]
 
-# tag::configuration-ui-hystrix[]
-spring.boot.admin.routes.endpoints: env,metrics,dump,jolokia,info,configprops,trace,logfile,refresh,flyway,liquibase,heapdump,loggers,auditevents,hystrix.stream
-# end::configuration-ui-hystrix[]
+---
+spring:
+  profiles: insecure
 
-# tag::configuration-ui-turbine[]
-spring.boot.admin.turbine:
-  clusters: default
-  location: turbine  #<1>
-# end::configuration-ui-turbine[]
-
+---
+spring:
+  profiles: secure
+  security:
+    user:
+      name: "user"
+      password: "password"
+eureka:
+  instance:
+    metadata-map:
+      user.name: "user"         #These two are needed so that the server
+      user.password: "password" #can access the protected client endpoints
