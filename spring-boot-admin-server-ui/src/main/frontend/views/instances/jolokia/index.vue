@@ -1,5 +1,5 @@
 <!--
-  - Copyright 2014-2018 the original author or authors.
+  - Copyright 2014-2019 the original author or authors.
   -
   - Licensed under the Apache License, Version 2.0 (the "License");
   - you may not use this file except in compliance with the License.
@@ -106,9 +106,8 @@
   import flatMap from 'lodash/flatMap';
   import fromPairs from 'lodash/fromPairs';
   import isEmpty from 'lodash/isEmpty';
-  import isEqual from 'lodash/isEqual';
   import sortBy from 'lodash/sortBy';
-  import {directive as onClickaway} from 'vue-clickaway';
+  import {directive as onClickaway} from 'vue-clickaway2';
   import mBeanAttributes from './m-bean-attributes';
   import mBeanOperations from './m-bean-operations';
 
@@ -188,14 +187,6 @@
           }
         }
       },
-      selected() {
-        if (!isEqual(this.selected, this.$route.query)) {
-          this.$router.replace({
-            name: 'instances/jolokia',
-            query: this.selected
-          });
-        }
-      },
       async selectedMBean(newVal) {
         if (newVal) {
           await this.$nextTick();
@@ -234,11 +225,15 @@
         this.hasLoaded = true;
       },
       select(domain, mBean, view) {
-        this.selected = {
+        const selected = {
           domain: domain && domain.domain,
           mBean: mBean && mBean.descriptor.raw,
           view: view || (mBean ? (mBean.attr ? 'attributes' : (mBean.op ? 'operations' : null)) : null)
         };
+        this.$router.replace({
+          name: 'instances/jolokia',
+          query: selected
+        });
       }
     },
     install({viewRegistry}) {

@@ -24,7 +24,7 @@
 </template>
 
 <script>
-  import {directive as onClickaway} from 'vue-clickaway';
+  import {directive as onClickaway} from 'vue-clickaway2';
 
   export default {
     directives: {onClickaway},
@@ -42,6 +42,7 @@
         } else {
           const width = this.$el.getBoundingClientRect().width;
           this.$el.style.width = `${width}px`;
+          event.stopPropagation();
         }
         this.confirm = !this.confirm;
       }

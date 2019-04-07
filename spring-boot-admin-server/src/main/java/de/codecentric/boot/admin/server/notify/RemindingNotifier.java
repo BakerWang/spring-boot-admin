@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,7 +25,9 @@ import de.codecentric.boot.admin.server.domain.values.InstanceId;
 import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
+import reactor.retry.Retry;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -60,25 +62,27 @@ public class RemindingNotifier extends AbstractEventNotifier {
 
     @Override
     public Mono<Void> doNotify(InstanceEvent event, Instance instance) {
-        return delegate.notify(event).onErrorResume(error -> Mono.empty()).then(Mono.fromRunnable(() -> {
+        return this.delegate.notify(event).doFinally(s -> {
             if (shouldEndReminder(event)) {
-                reminders.remove(event.getInstance());
+                this.reminders.remove(event.getInstance());
             } else if (shouldStartReminder(event)) {
-                reminders.putIfAbsent(event.getInstance(), new Reminder(event));
+                this.reminders.putIfAbsent(event.getInstance(), new Reminder(event));
             }
-        }));
+        }).onErrorResume(e -> Mono.empty());
     }
 
-
     public void start() {
-        this.subscription = Flux.interval(this.checkReminderInverval, Schedulers.newSingle("reminders"))
+        Scheduler scheduler = Schedulers.newSingle("reminders");
+        this.subscription = Flux.interval(this.checkReminderInverval, scheduler)
                                 .log(log.getName(), Level.FINEST)
                                 .doOnSubscribe(s -> log.debug("Started reminders"))
                                 .flatMap(i -> this.sendReminders())
-                                .onErrorContinue((ex, value) -> log.warn(
-                                    "Unexpected error while sending reminders",
-                                    ex
-                                ))
+                                .retryWhen(Retry.any()
+                                                .retryMax(Long.MAX_VALUE)
+                                                .doOnRetry(ctx -> log.warn("Unexpected error when sending reminders",
+                                                    ctx.exception()
+                                                )))
+                                .doFinally(s -> scheduler.dispose())
                                 .subscribe();
     }
 
@@ -93,16 +97,18 @@ public class RemindingNotifier extends AbstractEventNotifier {
         Instant now = Instant.now();
 
         return Flux.fromIterable(this.reminders.values())
-                   .filter(reminder -> reminder.getLastNotification().plus(reminderPeriod).isBefore(now))
-                   .flatMap(reminder -> delegate.notify(reminder.getEvent())
-                                                .doOnSuccess(signal -> reminder.setLastNotification(now)))
+                   .filter(reminder -> reminder.getLastNotification().plus(this.reminderPeriod).isBefore(now))
+                   .flatMap(reminder -> this.delegate.notify(reminder.getEvent())
+                                                     .doOnSuccess(signal -> reminder.setLastNotification(now)))
                    .then();
     }
 
     protected boolean shouldStartReminder(InstanceEvent event) {
         if (event instanceof InstanceStatusChangedEvent) {
-            return Arrays.binarySearch(reminderStatuses,
-                ((InstanceStatusChangedEvent) event).getStatusInfo().getStatus()) >= 0;
+            return Arrays.binarySearch(
+                this.reminderStatuses,
+                ((InstanceStatusChangedEvent) event).getStatusInfo().getStatus()
+            ) >= 0;
         }
         return false;
     }
@@ -112,8 +118,10 @@ public class RemindingNotifier extends AbstractEventNotifier {
             return true;
         }
         if (event instanceof InstanceStatusChangedEvent) {
-            return Arrays.binarySearch(reminderStatuses,
-                ((InstanceStatusChangedEvent) event).getStatusInfo().getStatus()) < 0;
+            return Arrays.binarySearch(
+                this.reminderStatuses,
+                ((InstanceStatusChangedEvent) event).getStatusInfo().getStatus()
+            ) < 0;
         }
         return false;
     }
@@ -132,7 +140,7 @@ public class RemindingNotifier extends AbstractEventNotifier {
         this.checkReminderInverval = checkReminderInverval;
     }
 
-    private static class Reminder {
+    protected static class Reminder {
         private final InstanceEvent event;
         private Instant lastNotification;
 
@@ -146,11 +154,11 @@ public class RemindingNotifier extends AbstractEventNotifier {
         }
 
         public Instant getLastNotification() {
-            return lastNotification;
+            return this.lastNotification;
         }
 
         public InstanceEvent getEvent() {
-            return event;
+            return this.event;
         }
     }
 }

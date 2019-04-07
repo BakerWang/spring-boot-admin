@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,6 +44,16 @@ public class AdminServerUiProperties {
      * Locations of SBA ui template.
      */
     private String templateLocation = CLASSPATH_RESOURCE_LOCATIONS[0];
+
+    /**
+     * Icon used as default favicon and icon for desktop notifications.
+     */
+    private String favicon = "assets/img/favicon.png";
+
+    /**
+     * Icon used as default favicon and icon for desktop notifications.
+     */
+    private String faviconDanger = "assets/img/favicon-danger.png";
 
     /**
      * Page-Title to be shown.

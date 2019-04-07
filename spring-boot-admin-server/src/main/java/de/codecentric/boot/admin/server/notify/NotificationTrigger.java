@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import de.codecentric.boot.admin.server.domain.events.InstanceEvent;
 import de.codecentric.boot.admin.server.services.AbstractEventHandler;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import org.reactivestreams.Publisher;
@@ -34,7 +35,8 @@ public class NotificationTrigger extends AbstractEventHandler<InstanceEvent> {
 
     @Override
     protected Publisher<Void> handle(Flux<InstanceEvent> publisher) {
-        return publisher.subscribeOn(Schedulers.newSingle("notifications")).flatMap(this::sendNotifications);
+        Scheduler scheduler = Schedulers.newSingle("notifications");
+        return publisher.subscribeOn(scheduler).flatMap(this::sendNotifications).doFinally(s -> scheduler.dispose());
     }
 
     protected Mono<Void> sendNotifications(InstanceEvent event) {

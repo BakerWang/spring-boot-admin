@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,17 +20,12 @@ import de.codecentric.boot.admin.server.domain.events.InstanceEvent;
 import de.codecentric.boot.admin.server.domain.events.InstanceRegisteredEvent;
 import de.codecentric.boot.admin.server.domain.events.InstanceRegistrationUpdatedEvent;
 import de.codecentric.boot.admin.server.domain.values.InstanceId;
-import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.logging.Level;
-import javax.annotation.Nullable;
 import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,67 +33,48 @@ import org.slf4j.LoggerFactory;
 public class StatusUpdateTrigger extends AbstractEventHandler<InstanceEvent> {
     private static final Logger log = LoggerFactory.getLogger(StatusUpdateTrigger.class);
     private final StatusUpdater statusUpdater;
-    private final Map<InstanceId, Instant> lastQueried = new HashMap<>();
-    private Duration updateInterval = Duration.ofSeconds(10);
-    private Duration statusLifetime = Duration.ofSeconds(10);
-    @Nullable
-    private Disposable intervalSubscription;
-
+    private final IntervalCheck intervalCheck;
 
     public StatusUpdateTrigger(StatusUpdater statusUpdater, Publisher<InstanceEvent> publisher) {
         super(publisher, InstanceEvent.class);
         this.statusUpdater = statusUpdater;
+        this.intervalCheck = new IntervalCheck("status", this::updateStatus);
+    }
+
+    @Override
+    protected Publisher<Void> handle(Flux<InstanceEvent> publisher) {
+        Scheduler scheduler = Schedulers.newSingle("status-updater");
+        return publisher.subscribeOn(scheduler)
+                        .filter(event -> event instanceof InstanceRegisteredEvent ||
+                                         event instanceof InstanceRegistrationUpdatedEvent)
+                        .flatMap(event -> updateStatus(event.getInstance()))
+                        .doFinally(s -> scheduler.dispose());
+    }
+
+    protected Mono<Void> updateStatus(InstanceId instanceId) {
+        return this.statusUpdater.updateStatus(instanceId).onErrorResume(e -> {
+            log.warn("Unexpected error while updating status for {}", instanceId, e);
+            return Mono.empty();
+        }).doFinally(s -> this.intervalCheck.markAsChecked(instanceId));
     }
 
     @Override
     public void start() {
         super.start();
-        intervalSubscription = Flux.interval(updateInterval)
-                                   .doOnSubscribe(s -> log.debug("Scheduled status update every {}", updateInterval))
-                                   .log(log.getName(), Level.FINEST)
-                                   .subscribeOn(Schedulers.newSingle("status-monitor"))
-                                   .concatMap(i -> this.updateStatusForAllInstances())
-                                   .onErrorContinue((ex, value) -> log.warn("Unexpected error while updating statuses",
-                                       ex
-                                   ))
-                                   .subscribe();
-    }
-
-    @Override
-    protected Publisher<Void> handle(Flux<InstanceEvent> publisher) {
-        return publisher.subscribeOn(Schedulers.newSingle("status-updater"))
-                        .filter(event -> event instanceof InstanceRegisteredEvent ||
-                                         event instanceof InstanceRegistrationUpdatedEvent)
-                        .flatMap(event -> updateStatus(event.getInstance()));
+        this.intervalCheck.start();
     }
 
     @Override
     public void stop() {
         super.stop();
-        if (intervalSubscription != null) {
-            intervalSubscription.dispose();
-        }
+        this.intervalCheck.stop();
     }
 
-    protected Mono<Void> updateStatusForAllInstances() {
-        log.debug("Updating status for all instances");
-        Instant expiryInstant = Instant.now().minus(statusLifetime);
-        return Flux.fromIterable(lastQueried.entrySet())
-                   .filter(e -> e.getValue().isBefore(expiryInstant))
-                   .map(Map.Entry::getKey)
-                   .flatMap(this::updateStatus)
-                   .then();
+    public void setInterval(Duration updateInterval) {
+        this.intervalCheck.setInterval(updateInterval);
     }
 
-    protected Mono<Void> updateStatus(InstanceId instanceId) {
-        return statusUpdater.updateStatus(instanceId).doFinally(s -> lastQueried.put(instanceId, Instant.now()));
-    }
-
-    public void setUpdateInterval(Duration updateInterval) {
-        this.updateInterval = updateInterval;
-    }
-
-    public void setStatusLifetime(Duration statusLifetime) {
-        this.statusLifetime = statusLifetime;
+    public void setLifetime(Duration statusLifetime) {
+        this.intervalCheck.setMinRetention(statusLifetime);
     }
 }

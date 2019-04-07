@@ -19,7 +19,7 @@ In case you need to inject custom HTTP headers into the requests made to the mon
 
 [source,java,indent=0]
 ----
-include::{samples-dir}/spring-boot-admin-sample-servlet/src/main/java/de/codecentric/boot/admin/SpringBootAdminApplication.java[tags=customization-http-headers-providers]
+include::{samples-dir}/spring-boot-admin-sample-servlet/src/main/java/de/codecentric/boot/admin/SpringBootAdminServletApplication.java[tags=customization-http-headers-providers]
 ----
 
 [[customizing-instance-filter]]
@@ -30,7 +30,7 @@ This can be useful for auditing or adding some extra security checks.
 
 [source,java,indent=0]
 ----
-include::{samples-dir}/spring-boot-admin-sample-servlet/src/main/java/de/codecentric/boot/admin/SpringBootAdminApplication.java[tags=customization-instance-exchange-filter-function]
+include::{samples-dir}/spring-boot-admin-sample-servlet/src/main/java/de/codecentric/boot/admin/SpringBootAdminServletApplication.java[tags=customization-instance-exchange-filter-function]
 ----
 
 [[customizing-custom-views]]
@@ -43,6 +43,8 @@ The {github-src}/spring-boot-admin-samples/spring-boot-admin-sample-custom-ui/[s
 
 The custom extension registers itself by calling `SBA.use()` and need to expose a `install()` function, which is called by the ui when setting up the routes.
 The `install()` function receives a parameter object referencing the {github-src}/spring-boot-admin-server-ui/src/main/frontend/viewRegistry.js[viewRegistry] and the {github-src}/spring-boot-admin-server-ui/src/main/frontend/store.js[applicationStore] in order to register views and/or callbacks.
+
+If new top level routes are added to the frontend, they also must be known to the backend. Add a `/META-INF/spring-boot-admin-server-ui/extensions/{name}/routes.txt` with all your new toplevel routes (one route per line).
 
 [[customizing-custom-views-top-level]]
 ==== Adding a Top-Level View ====
@@ -66,6 +68,12 @@ include::{samples-dir}/spring-boot-admin-sample-custom-ui/src/index.js[tags=cust
 <3> The imported custom component, which will be rendered on the route.
 <4> The label for the custom view to be shown in the top navigation bar.
 <5> Order for the view. Views in the top navigation bar are sorted by ascending order.
+
+The `routes.txt` config with the added route:
+[source,text]
+----
+include::{samples-dir}/spring-boot-admin-sample-custom-ui/src/routes.txt[]
+----
 
 [[customizing-custom-views-instance]]
 ==== Visualizing a Custom Endpoint ====
@@ -95,3 +103,12 @@ Either you just add the image to your jar-file in `/META-INF/spring-boot-admin-s
 or you must ensure yourself that the image gets served correctly (e.g. by registering your own `ResourceHandler`)
 
 - **spring.boot.admin.ui.title**: Use this option to customize the browsers window title.
+
+=== Customizing Favicon ===
+It is possible to use a custom favicon, which is also used for desktop notifications. Spring Boot Admin uses a different icon when one or more application is down.
+
+1. Put the favicon (`.png` with at least 192x192 pixels) in a resource location which is served via http (e.g. `/META-INF/spring-boot-admin-server-ui/assets/img/`).
+
+2. Configure the icons to use using the following properties:
+  - `spring.boot.admin.ui.favicon`: Used as default icon. (e.g `assets/img/custom-favicon.png`
+  - `spring.boot.admin.ui.favicon-danger`: Used when one or more service is down. (e.g `assets/img/custom-favicon-danger.png`)

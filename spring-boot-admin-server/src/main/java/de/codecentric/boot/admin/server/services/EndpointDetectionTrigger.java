@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,11 +21,15 @@ import de.codecentric.boot.admin.server.domain.events.InstanceRegistrationUpdate
 import de.codecentric.boot.admin.server.domain.events.InstanceStatusChangedEvent;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Scheduler;
 import reactor.core.scheduler.Schedulers;
 
 import org.reactivestreams.Publisher;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class EndpointDetectionTrigger extends AbstractEventHandler<InstanceEvent> {
+    private static final Logger log = LoggerFactory.getLogger(EndpointDetectionTrigger.class);
     private final EndpointDetector endpointDetector;
 
     public EndpointDetectionTrigger(EndpointDetector endpointDetector, Publisher<InstanceEvent> publisher) {
@@ -35,13 +39,18 @@ public class EndpointDetectionTrigger extends AbstractEventHandler<InstanceEvent
 
     @Override
     protected Publisher<Void> handle(Flux<InstanceEvent> publisher) {
-        return publisher.subscribeOn(Schedulers.newSingle("endpoint-detector"))
+        Scheduler scheduler = Schedulers.newSingle("endpoint-detector");
+        return publisher.subscribeOn(scheduler)
                         .filter(event -> event instanceof InstanceStatusChangedEvent ||
                                          event instanceof InstanceRegistrationUpdatedEvent)
-                        .flatMap(this::detectEndpoints);
+                        .flatMap(this::detectEndpoints)
+                        .doFinally(s -> scheduler.dispose());
     }
 
     protected Mono<Void> detectEndpoints(InstanceEvent event) {
-        return endpointDetector.detectEndpoints(event.getInstance());
+        return this.endpointDetector.detectEndpoints(event.getInstance()).onErrorResume(e -> {
+            log.warn("Unexpected error while detecting endpoints for {}", event.getInstance(), e);
+            return Mono.empty();
+        });
     }
 }

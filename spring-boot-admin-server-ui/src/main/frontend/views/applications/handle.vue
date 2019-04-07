@@ -1,5 +1,5 @@
 <!--
-  - Copyright 2014-2018 the original author or authors.
+  - Copyright 2014-2019 the original author or authors.
   -
   - Licensed under the Apache License, Version 2.0 (the "License");
   - you may not use this file except in compliance with the License.
@@ -27,6 +27,10 @@
 
 <script>
   export default {
+     data: () => ({
+       favicon: 'assets/img/favicon.png',
+      faviconDanger: 'assets/img/favicon-danger.png',
+    }),
     props: {
       applications: {
         type: Array,
@@ -44,6 +48,16 @@
         }, 0);
       }
     },
+    created() {
+      if (global.SBA && global.SBA.uiSettings) {
+        if (global.SBA.uiSettings.favicon) {
+          this.favicon = global.SBA.uiSettings.favicon
+        }
+        if (global.SBA.uiSettings.faviconDanger) {
+          this.faviconDanger = global.SBA.uiSettings.faviconDanger
+        }
+      }
+    },
     watch: {
       downCount(newVal, oldVal) {
         if ((newVal === 0) !== (oldVal === 0)) {
@@ -53,7 +67,7 @@
     },
     methods: {
       updateFavicon(up) {
-        document.querySelector('link[rel*="icon"]').href = up ? 'assets/img/favicon.png' : 'assets/img/favicon-danger.png';
+        document.querySelector('link[rel*="icon"]').href = up ? this.favicon : this.faviconDanger;
       }
     }
   };

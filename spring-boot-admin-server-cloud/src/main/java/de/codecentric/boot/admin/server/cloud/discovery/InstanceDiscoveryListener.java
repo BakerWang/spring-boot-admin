@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -101,6 +101,7 @@ public class InstanceDiscoveryListener {
     }
 
     protected void discover() {
+        log.debug("Discovering new instances from DiscoveryClient");
         Flux.fromIterable(discoveryClient.getServices())
             .filter(this::shouldRegisterService)
             .flatMapIterable(discoveryClient::getInstances)
@@ -116,7 +117,10 @@ public class InstanceDiscoveryListener {
                          .filter(instance -> SOURCE.equals(instance.getRegistration().getSource()))
                          .map(Instance::getId)
                          .filter(id -> !registeredInstanceIds.contains(id))
-                         .doOnNext(id -> log.info("Instance ({}) missing in DiscoveryClient services ", id))
+                         .doOnNext(id -> log.info(
+                             "Instance '{}' missing in DiscoveryClient services and will be removed.",
+                             id
+                         ))
                          .flatMap(registry::deregister)
                          .then();
     }
@@ -124,7 +128,7 @@ public class InstanceDiscoveryListener {
     protected boolean shouldRegisterService(final String serviceId) {
         boolean shouldRegister = matchesPattern(serviceId, services) && !matchesPattern(serviceId, ignoredServices);
         if (!shouldRegister) {
-            log.debug("Ignoring discovered service {}", serviceId);
+            log.debug("Ignoring service '{}' from discovery.", serviceId);
         }
         return shouldRegister;
     }
@@ -139,9 +143,19 @@ public class InstanceDiscoveryListener {
             log.debug("Registering discovered instance {}", registration);
             return registry.register(registration);
         } catch (Exception ex) {
-            log.error("Couldn't register instance for service {}", instance, ex);
+            log.error("Couldn't register instance for discovered instance ({})", toString(instance), ex);
+            return Mono.empty();
         }
-        return Mono.empty();
+    }
+
+    protected String toString(ServiceInstance instance) {
+        String httpScheme = instance.isSecure() ? "https" : "http";
+        return String.format("serviceId=%s, instanceId=%s, url= %s://%s:%d",
+            instance.getServiceId(), instance.getInstanceId(),
+            instance.getScheme() != null ? instance.getScheme() : httpScheme,
+            instance.getHost(),
+            instance.getPort()
+        );
     }
 
     public void setConverter(ServiceInstanceConverter converter) {
