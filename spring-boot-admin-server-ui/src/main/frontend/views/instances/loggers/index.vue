@@ -28,6 +28,7 @@
   import Instance from '@/services/instance';
   import Loggers from './loggers';
   import {ApplicationLoggers, InstanceLoggers} from './service';
+  import {VIEW_GROUP} from '../../index';
 
   export default {
     components: {Loggers},
@@ -58,9 +59,9 @@
         name: 'instances/loggers',
         parent: 'instances',
         path: 'loggers',
+        label: 'instances.loggers.label',
         component: this,
-        label: 'Loggers',
-        group: 'Logging',
+        group: VIEW_GROUP.LOGGING,
         order: 300,
         isEnabled: ({instance}) => instance.hasEndpoint('loggers')
       });

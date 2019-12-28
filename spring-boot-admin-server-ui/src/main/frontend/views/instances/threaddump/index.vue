@@ -17,14 +17,29 @@
 <template>
   <section class="section" :class="{ 'is-loading' : !hasLoaded }">
     <template v-if="hasLoaded">
-      <div v-if="error" class="message is-danger">
+      <div v-if="errorFetch" class="message is-danger">
         <div class="message-body">
           <strong>
             <font-awesome-icon class="has-text-danger" icon="exclamation-triangle" />
-            Fetching threaddump failed.
+            <span v-text="$t('instances.threaddump.fetch_failed')" />
           </strong>
-          <p v-text="error.message" />
+          <p v-text="errorFetch.message" />
         </div>
+      </div>
+      <div v-if="errorDownload" class="message is-danger">
+        <div class="message-body">
+          <strong>
+            <font-awesome-icon class="has-text-danger" icon="exclamation-triangle" />
+            <span v-text="$t('instances.threaddump.download_failed')" />
+          </strong>
+          <p v-text="errorDownload.message" />
+        </div>
+      </div>
+      <div v-if="threads" class="control">
+        <button class="button is-primary" @click="downloadThreaddump">
+          <font-awesome-icon icon="download" />&nbsp;
+          <span v-text="$t('instances.threaddump.download')" />
+        </button>
       </div>
       <threads-list v-if="threads" :thread-timelines="threads" />
     </template>
@@ -38,6 +53,7 @@
   import remove from 'lodash/remove';
   import moment from 'moment-shortformat';
   import threadsList from './threads-list';
+  import {VIEW_GROUP} from '../../index';
 
   export default {
     props: {
@@ -50,7 +66,8 @@
     components: {threadsList},
     data: () => ({
       hasLoaded: false,
-      error: null,
+      errorFetch: null,
+      errorDownload: null,
       threads: null
     }),
     computed: {},
@@ -71,21 +88,22 @@
                 threadId: thread.threadId,
                 threadState: thread.threadState,
                 threadName: thread.threadName,
-                details: thread,
                 timeline: [{
                   start: now,
                   end: now,
+                  details: thread,
                   threadState: thread.threadState,
                 }]
               });
             } else {
               const entry = vm.threads[thread.threadId];
-              entry.details = thread;
               if (entry.threadState !== thread.threadState) {
                 entry.threadState = thread.threadState;
+                entry.timeline[entry.timeline.length - 1].end = now;
                 entry.timeline.push({
-                  start: entry.timeline[entry.timeline.length - 1].end,
+                  start: now,
                   end: now,
+                  details: thread,
                   threadState: thread.threadState,
                 });
               } else {
@@ -98,7 +116,6 @@
         terminatedThreads.forEach(threadId => {
           const entry = vm.threads[threadId];
           entry.threadState = 'TERMINATED';
-          entry.details = null;
           entry.timeline[entry.timeline.length - 1].end = now;
         });
       },
@@ -106,9 +123,19 @@
         const response = await this.instance.fetchThreaddump();
         return response.data.threads;
       },
+      async downloadThreaddump() {
+        const vm = this;
+        vm.errorDownload = null;
+        try {
+          await this.instance.downloadThreaddump();
+        } catch(error) {
+          console.warn('Downloading thread dump failed.', error);
+          vm.errorDownload = error;
+        }
+      },
       createSubscription() {
         const vm = this;
-        vm.error = null;
+        vm.errorFetch = null;
         return timer(0, 1000)
           .pipe(concatMap(vm.fetchThreaddump))
           .subscribe({
@@ -119,7 +146,7 @@
             error: error => {
               vm.hasLoaded = true;
               console.warn('Fetching threaddump failed:', error);
-              vm.error = error;
+              vm.errorFetch = error;
             }
           });
       }
@@ -129,9 +156,9 @@
         name: 'instances/threaddump',
         parent: 'instances',
         path: 'threaddump',
+        label: 'instances.threaddump.label',
         component: this,
-        label: 'Threads',
-        group: 'JVM',
+        group: VIEW_GROUP.JVM,
         order: 400,
         isEnabled: ({instance}) => instance.hasEndpoint('threaddump')
       });

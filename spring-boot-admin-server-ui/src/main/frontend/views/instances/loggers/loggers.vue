@@ -20,7 +20,7 @@
       <div class="message-body">
         <strong>
           <font-awesome-icon class="has-text-danger" icon="exclamation-triangle" />
-          Fetching loggers failed.
+          <span v-text="$t('instances.loggers.fetch_failed')" />
         </strong>
         <p v-text="error.message" />
       </div>
@@ -35,23 +35,21 @@
                 class="loggers__toggle-scope button is-primary is-active"
                 @click="$emit('changeScope', 'instance')"
               >
-                <font-awesome-icon icon="cubes" />&nbsp;Application
+                <font-awesome-icon icon="cubes" />&nbsp;
+                <span v-text="$t('instances.loggers.application')" />
               </button>
               <button
                 v-else
                 class="loggers__toggle-scope button"
                 @click="$emit('changeScope', 'application')"
               >
-                <font-awesome-icon icon="cube" />&nbsp;Instance
+                <font-awesome-icon icon="cube" />&nbsp;&nbsp;
+                <span v-text="$t('instances.loggers.instance')" />
               </button>
             </div>
             <p class="help has-text-centered">
-              <span v-if="scope === 'application'">
-                Affects all <span v-text="instanceCount" /> instances
-              </span>
-              <span v-else>
-                Affects only this instance
-              </span>
+              <span v-if="scope === 'application'" v-text="$t('instances.loggers.affects_all_instances', {count: instanceCount})" />
+              <span v-else v-text="$t('instances.loggers.affects_this_instance_only')" />
             </p>
           </div>
 
@@ -76,13 +74,13 @@
                 <div class="control">
                   <label class="checkbox">
                     <input type="checkbox" v-model="filter.classOnly">
-                    class only
+                    <span v-text="$t('instances.loggers.filter.class_only')" />
                   </label>
                 </div>
                 <div class="control">
                   <label class="checkbox">
                     <input type="checkbox" v-model="filter.configuredOnly">
-                    configured
+                    <span v-text="$t('instances.loggers.filter.configured')" />
                   </label>
                 </div>
               </div>
@@ -101,16 +99,30 @@
 </template>
 
 <script>
-  import sticksBelow from '@/directives/sticks-below';
-  import {finalize, from, listen} from '@/utils/rxjs';
-  import LoggersList from './loggers-list';
+    import sticksBelow from '@/directives/sticks-below';
+    import {finalize, from, listen} from '@/utils/rxjs';
+    import LoggersList from './loggers-list';
 
-  const isClassName = name => /\.[A-Z]/.test(name);
+    const isClassName = name => /\.[A-Z]/.test(name);
 
   const addToFilter = (oldFilter, addedFilter) =>
     !oldFilter
       ? addedFilter
       : (val, key) => oldFilter(val, key) && addedFilter(val, key);
+
+  const addLoggerCreationEntryIfLoggerNotPresent = (nameFilter, loggers) => {
+      if (nameFilter && !loggers.some(logger => logger.name === nameFilter)) {
+          loggers.unshift({
+              level:[{
+                  configuredLevel: null,
+                  effectiveLevel: null,
+                  instanceId: null
+              }],
+              name: nameFilter,
+              isNew: true
+          })
+      }
+  };
 
   export default {
     components: {LoggersList},
@@ -143,7 +155,9 @@
     computed: {
       filteredLoggers() {
         const filterFn = this.getFilterFn();
-        return filterFn ? this.loggerConfig.loggers.filter(filterFn) : this.loggerConfig.loggers;
+        const filteredLoggers = filterFn ? this.loggerConfig.loggers.filter(filterFn) : this.loggerConfig.loggers;
+        addLoggerCreationEntryIfLoggerNotPresent(this.filter.name, filteredLoggers);
+        return filteredLoggers;
       }
     },
     watch: {

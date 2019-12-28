@@ -4,7 +4,7 @@
 === Running Behind a Front-end Proxy Server ===
 
 In case the Spring Boot Admin server is running behind a reverse proxy, it may be requried to configure the public url where the server is reachable via (`spring.boot.admin.ui.public-url`).
-In addition when the reverse proxy terminates the https connection, it may be necessary to configure `server.use-forward-headers=true` (also see https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#howto-use-tomcat-behind-a-proxy-server[Spring Boot Reference Guide]).
+In addition when the reverse proxy terminates the https connection, it may be necessary to configure `server.forward-headers-strategy=native` (also see https://docs.spring.io/spring-boot/docs/current/reference/htmlsingle/#howto-use-tomcat-behind-a-proxy-server[Spring Boot Reference Guide]).
 
 === Configuration Options ===
 |===
@@ -31,7 +31,7 @@ In addition when the reverse proxy terminates the https connection, it may be ne
 | 1m
 
 | spring.boot.admin.monitor.default-timeout
-| Default timeout when making requests. Individual values for specific endpoints can be overriden using `spring.boot.admin.monitor.timeout.*`.
+| Default timeout when making requests. Individual values for specific endpoints can be overridden using `spring.boot.admin.monitor.timeout.*`.
 | 10,000
 
 | spring.boot.admin.monitor.timeout.*
@@ -39,11 +39,11 @@ In addition when the reverse proxy terminates the https connection, it may be ne
 |
 
 | spring.boot.admin.monitor.default-retries
-| Default number of retries for failed requests. Modyfing requests (`PUT`, `POST`, `PATCH`, `DELETE`) are never retried. Individual values for specific endpoints can be overriden using `spring.boot.admin.monitor.retries.*`.
+| Default number of retries for failed requests. Modifying requests (`PUT`, `POST`, `PATCH`, `DELETE`) are never retried. Individual values for specific endpoints can be overridden using `spring.boot.admin.monitor.retries.*`.
 | 0
 
 | spring.boot.admin.monitor.retries.*
-| Key-Value-Pairs with the number of retries per endpointId. Defaults to default-retries. Modyfing requests (`PUT`, `POST`, `PATCH`, `DELETE`) are never retried.
+| Key-Value-Pairs with the number of retries per endpointId. Defaults to default-retries. Modifying requests (`PUT`, `POST`, `PATCH`, `DELETE`) are never retried.
 |
 
 | spring.boot.admin.metadata-keys-to-sanitize
@@ -71,6 +71,10 @@ In addition when the reverse proxy terminates the https connection, it may be ne
 | Page-Title to be shown.
 | `"Spring Boot Admin"`
 
+| spring.boot.admin.ui.login-icon
+| Icon used as image on login page.
+| `"assets/img/icon-spring-boot-admin.svg"`
+
 | spring.boot.admin.ui.favicon
 | Icon used as default favicon and icon for desktop notifications.
 | `"assets/img/favicon.png"`
@@ -78,6 +82,10 @@ In addition when the reverse proxy terminates the https connection, it may be ne
 | spring.boot.admin.ui.favicon-danger
 | Icon used as favicon when one or more service is down and for desktop notifications.
 | `"assets/img/favicon-danger.png"`
+
+| spring.boot.admin.ui.remember-me-enabled
+| Switch to show/hide the remember-me checkbox on the login page.
+| `true`
 
 |===
 

@@ -21,7 +21,7 @@
         <div class="message-body">
           <strong>
             <font-awesome-icon class="has-text-danger" icon="exclamation-triangle" />
-            Fetching traces failed.
+            <span v-text="$t('instances.httptrace.fetching_failed')" />
           </strong>
           <p v-text="error.message" />
         </div>
@@ -34,8 +34,8 @@
                 <input
                   class="input"
                   type="search"
-                  v-model="filter"
-                  placeholder="Path"
+                  v-model="filter.uri"
+                  :placeholder="$t('instances.httptrace.uri')"
                 >
                 <span class="icon is-small is-left">
                   <font-awesome-icon icon="filter" />
@@ -51,9 +51,7 @@
             </div>
             <div class="field is-narrow has-addons">
               <p class="control">
-                <span class="button is-static">
-                  limit
-                </span>
+                <span class="button is-static" v-text="$t('instances.httptrace.limit')" />
               </p>
               <p class="control">
                 <input class="input httptraces__limit" min="0" type="number" placeholder="trace limit" v-model="limit">
@@ -65,68 +63,79 @@
           <div class="field is-narrow">
             <div class="control">
               <label class="checkbox">
-                <input type="checkbox" v-model="showSuccess">
-                success
+                <input type="checkbox" v-model="filter.showSuccess">
+                <span v-text="$t('instances.httptrace.filter.success')" />
               </label>
             </div>
           </div>
           <div class="field is-narrow">
             <div class="control">
               <label class="checkbox">
-                <input type="checkbox" v-model="showClientErrors">
-                client errors
+                <input type="checkbox" v-model="filter.showClientErrors">
+                <span v-text="$t('instances.httptrace.filter.client_errors')" />
               </label>
             </div>
           </div>
           <div class="field is-narrow">
             <div class="control">
               <label class="checkbox">
-                <input type="checkbox" v-model="showServerErrors">
-                server errors
+                <input type="checkbox" v-model="filter.showServerErrors">
+                <span v-text="$t('instances.httptrace.filter.server_errors')" />
               </label>
             </div>
           </div>
           <div class="field is-narrow" v-if="actuatorPath">
             <div class="control">
               <label class="checkbox">
-                <input type="checkbox" v-model="excludeActuator">
-                exclude <span v-text="actuatorPath" />/**
+                <input type="checkbox" v-model="filter.excludeActuator">
+                <span v-text="$t('instances.httptrace.filter.exclude_actuator', {actuator: actuatorPath})" />
               </label>
             </div>
           </div>
         </div>
-        <sba-traces-chart :traces="filteredTraces" @selected="d => selection = d" />
-        <sba-traces-list :traces="selectedTraces" />
+        <sba-traces-chart :traces="filteredTraces" @selected="updateSelection" />
+        <sba-traces-list
+          :new-traces-count="newTracesCount"
+          :traces="listedTraces"
+          @show-new-traces="showNewTraces"
+        />
       </template>
     </template>
   </section>
 </template>
 
 <script>
-  import subscribing from '@/mixins/subscribing';
-  import Instance from '@/services/instance';
-  import {concatMap, timer} from '@/utils/rxjs';
-  import moment from 'moment';
-  import sbaTracesChart from './traces-chart';
-  import sbaTracesList from './traces-list';
+    import subscribing from '@/mixins/subscribing';
+    import Instance from '@/services/instance';
+    import {concatMap, timer} from '@/utils/rxjs';
+    import debounce from 'lodash/debounce';
+    import mapKeys from 'lodash/mapKeys';
+    import moment from 'moment';
+    import {VIEW_GROUP} from '../../index';
+    import sbaTracesChart from './traces-chart';
+    import sbaTracesList from './traces-list';
 
-  const addToFilter = (oldFilter, addedFilter) =>
+    const addToFilter = (oldFilter, addedFilter) =>
     !oldFilter
       ? addedFilter
       : (val, key) => oldFilter(val, key) && addedFilter(val, key);
 
+  const normalize = (obj) => mapKeys(obj, (value, key) => key.toLowerCase());
+
   class Trace {
-    constructor({timestamp, ...trace}) {
+    constructor({timestamp, request, response, ...trace}) {
       Object.assign(this, trace);
       this.timestamp = moment(timestamp);
+      this.request = {...request, headers: normalize(request.headers)};
+      this.response = {...response, headers: normalize(response.headers)};
     }
 
     get key() {
-      return `${this.timestamp}-${this.request.method}-${this.request.uri}`;
+      return `${this.timestamp.valueOf()}-${this.request.method}-${this.request.uri}`;
     }
 
     get contentLength() {
-      const contentLength = this.response.headers['Content-Length'] && this.response.headers['Content-Length'][0];
+      const contentLength = this.response.headers['content-length'] && this.response.headers['content-length'][0];
       if (contentLength && /^\d+$/.test(contentLength)) {
         return parseInt(contentLength);
       }
@@ -134,7 +143,7 @@
     }
 
     get contentType() {
-      const contentType = this.response.headers['Content-Type'] && this.response.headers['Content-Type'][0];
+      const contentType = this.response.headers['content-type'] && this.response.headers['content-type'][0];
       if (contentType) {
         const idx = contentType.indexOf(';');
         return idx >= 0 ? contentType.substring(0, idx) : contentType;
@@ -172,12 +181,15 @@
       hasLoaded: false,
       error: null,
       traces: [],
-      filter: null,
+      listOffset: 0,
+      filter: {
+        excludeActuator: true,
+        showSuccess: true,
+        showClientErrors: true,
+        showServerErrors: true,
+        uri: null
+      },
       limit: 1000,
-      excludeActuator: true,
-      showSuccess: true,
-      showClientErrors: true,
-      showServerErrors: true,
       selection: null
     }),
     computed: {
@@ -191,28 +203,38 @@
         return null;
       },
       filteredTraces() {
-        const filterFn = this.getFilterFn();
-        return filterFn ? this.traces.filter(filterFn) : this.traces;
+        return this.filterTraces(this.traces);
       },
-      selectedTraces() {
-        if (this.selection === null) {
-          return this.filteredTraces;
+      newTracesCount() {
+        return this.selection ? 0 : this.filterTraces(this.traces.slice(0, this.listOffset)).length;
+      },
+      listedTraces() {
+        const traces = this.filterTraces(this.traces.slice(this.listOffset));
+        if (!this.selection) {
+          return traces;
         }
         const [start, end] = this.selection;
-        return this.filteredTraces.filter(trace => !trace.timestamp.isBefore(start) && !trace.timestamp.isAfter(end));
+        return traces.filter(trace => !trace.timestamp.isBefore(start) && !trace.timestamp.isAfter(end));
       },
       lastTimestamp() {
         return this.traces.length > 0 ? this.traces[0].timestamp : moment(0);
       }
     },
     watch: {
-      limit(value) {
+      limit: debounce(function (value) {
         if (this.traces.length > value) {
-          this.traces = this.traces.slice(0, value);
+          this.traces = Object.freeze(this.traces.slice(0, value));
         }
-      }
+      }, 250)
     },
     methods: {
+      updateSelection(selection) {
+        this.selection = selection;
+        this.showNewTraces();
+      },
+      showNewTraces() {
+        this.listOffset = 0;
+      },
       async fetchHttptrace() {
         const response = await this.instance.fetchHttptrace();
         const traces = response.data.traces.map(trace => new Trace(trace))
@@ -227,6 +249,9 @@
           .subscribe({
             next: traces => {
               vm.hasLoaded = true;
+              if (vm.traces.length > 0) {
+                vm.listOffset += traces.length;
+              }
               vm.traces = [...traces, ...vm.traces].slice(0, vm.limit);
             },
             error: error => {
@@ -236,25 +261,25 @@
             }
           });
       },
-      getFilterFn() {
+      filterTraces(traces) {
         let filterFn = null;
-        if (this.actuatorPath !== null && this.excludeActuator) {
+        if (this.actuatorPath !== null && this.filter.excludeActuator) {
           filterFn = addToFilter(filterFn, (trace) => !trace.request.uri.includes(this.actuatorPath));
         }
-        if (this.filter) {
-          const normalizedFilter = this.filter.toLowerCase();
+        if (this.filter.uri) {
+          const normalizedFilter = this.filter.uri.toLowerCase();
           filterFn = addToFilter(filterFn, (trace) => trace.request.uri.toLowerCase().includes(normalizedFilter));
         }
-        if (!this.showSuccess) {
+        if (!this.filter.showSuccess) {
           filterFn = addToFilter(filterFn, (trace) => !trace.isSuccess());
         }
-        if (!this.showClientErrors) {
+        if (!this.filter.showClientErrors) {
           filterFn = addToFilter(filterFn, (trace) => !trace.isClientError());
         }
-        if (!this.showServerErrors) {
+        if (!this.filter.showServerErrors) {
           filterFn = addToFilter(filterFn, (trace) => !trace.isServerError());
         }
-        return filterFn;
+        return filterFn ? traces.filter(filterFn) : traces;
       }
     },
     install({viewRegistry}) {
@@ -263,8 +288,8 @@
         parent: 'instances',
         path: 'httptrace',
         component: this,
-        label: 'Http Traces',
-        group: 'Web',
+        label: 'instances.httptrace.label',
+        group: VIEW_GROUP.WEB,
         order: 500,
         isEnabled: ({instance}) => instance.hasEndpoint('httptrace')
       });

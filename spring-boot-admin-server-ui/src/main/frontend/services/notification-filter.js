@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2018 the original author or authors.
+ * Copyright 2014-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-
+import sbaConfig from '@/sba-config'
 import axios from '@/utils/axios';
 import uri from '@/utils/uri';
 import moment from 'moment';
@@ -42,11 +42,11 @@ class NotificationFilter {
   }
 
   get isApplicationFilter() {
-    return this.hasOwnProperty('applicationName');
+    return 'applicationName' in this;
   }
 
   get isInstanceFilter() {
-    return this.hasOwnProperty('instanceId');
+    return 'instanceId' in this;
   }
 
   async delete() {
@@ -54,7 +54,7 @@ class NotificationFilter {
   }
 
   static isSupported() {
-    return Boolean(global.SBA && global.SBA.uiSettings && global.SBA.uiSettings.notificationFilterEnabled);
+    return Boolean(sbaConfig.uiSettings.notificationFilterEnabled);
   }
 
   static async getFilters() {
@@ -65,9 +65,9 @@ class NotificationFilter {
 
   static async addFilter(object, ttl) {
     const params = {ttl};
-    if (object.hasOwnProperty('name')) {
+    if ('name' in object) {
       params.applicationName = object.name;
-    } else if (object.hasOwnProperty('id')) {
+    } else if ('id' in object) {
       params.instanceId = object.id;
     }
     return axios.post('notifications/filters', null, {
