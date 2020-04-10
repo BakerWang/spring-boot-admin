@@ -70,7 +70,7 @@ Enables the logfile actuator endpoint.
 [[show-instance-tags]]
 === Show Tags per Instance ===
 
-`Tags` are a way to add visual markers per instanace, they will appear in the application list as well as in the instance view.
+`Tags` are a way to add visual markers per instance, they will appear in the application list as well as in the instance view.
 By default no tags are added to instances, and it's up to the client to specify the desired tags by adding the information to the metadata or info endpoint.
 
 .application.properties
@@ -87,7 +87,6 @@ info.tags.environment=test
 
 The Spring Boot Admin Client registers the application at the admin server.
 This is done by periodically doing a HTTP post request to the SBA Server providing information about the application.
-It also adds Jolokia to your application, so that JMX-beans are accessible via HTTP.
 
 TIP: There are plenty of properties to influence the way how the SBA Client registers your application.
 In case that doesn't fit your needs, you can provide your own `ApplicationFactory` implementation.

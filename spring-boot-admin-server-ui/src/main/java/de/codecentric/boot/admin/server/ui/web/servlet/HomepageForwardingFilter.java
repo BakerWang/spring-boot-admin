@@ -1,5 +1,5 @@
 /*
- * Copyright 2014-2019 the original author or authors.
+ * Copyright 2014-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.List;
 
 import javax.servlet.Filter;
 import javax.servlet.FilterChain;
+import javax.servlet.FilterConfig;
 import javax.servlet.ServletException;
 import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
@@ -42,17 +43,16 @@ import de.codecentric.boot.admin.server.ui.web.HomepageForwardingMatcher;
  * history mode</a>
  */
 public class HomepageForwardingFilter implements Filter {
-
 	private static final Logger log = LoggerFactory.getLogger(HomepageForwardingFilter.class);
 
 	private final String homepage;
 
 	private final HomepageForwardingMatcher<HttpServletRequest> matcher;
 
-	public HomepageForwardingFilter(String homepage, List<String> routes) {
+	public HomepageForwardingFilter(String homepage, List<String> routes, List<String> excludedRoutes) {
 		this.homepage = homepage;
 		UrlPathHelper urlPathHelper = new UrlPathHelper();
-		this.matcher = new HomepageForwardingMatcher<>(routes, HttpServletRequest::getMethod,
+		this.matcher = new HomepageForwardingMatcher<>(routes, excludedRoutes, HttpServletRequest::getMethod,
 				urlPathHelper::getPathWithinApplication,
 				(r) -> MediaType.parseMediaTypes(r.getHeader(HttpHeaders.ACCEPT)));
 	}
@@ -72,4 +72,11 @@ public class HomepageForwardingFilter implements Filter {
 		chain.doFilter(request, response);
 	}
 
+	@Override
+	public void init(FilterConfig filterConfig) {
+	}
+
+	@Override
+	public void destroy() {
+	}
 }
